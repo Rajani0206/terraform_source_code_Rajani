@@ -1,0 +1,114 @@
+provider "aws" {
+    region = var.aws_region
+  
+}
+
+resource "aws_vpc" "newtest" {
+    cidr_block = var.vpc_cidr_range
+    tags = {
+        Name = var.vpc_name
+    }
+}
+
+resource "aws_subnet" "new_public" {
+    vpc_id = aws_vpc.newtest.id
+    cidr_block = var.pub_subnet_cidr
+    availability_zone = var.availability_zone
+    map_public_ip_on_launch = true
+    tags = {
+      Name = var.subnet_name
+    }
+  
+}
+
+resource "aws_internet_gateway" "new_igw" {
+    vpc_id = aws_vpc.newtest.id
+    tags = {
+      Name = var.internet_gateway
+    }
+  
+}
+# Create a Route Table
+resource "aws_route_table" "rt_table" {
+    vpc_id = aws_vpc.newtest.id
+    route {
+        cidr_block = "0.0.0.0/0"
+        gateway_id = aws_internet_gateway.new_igw.id
+    }
+    tags = {
+      Name = var.new_route_table
+    }
+  
+}
+
+# Associate the Route Table with the Subnet
+resource "aws_route_table_association" "rt_table_pub" {
+    subnet_id = aws_subnet.new_public.id
+    route_table_id = aws_route_table.rt_table.id
+  
+}
+# Create a Security Group
+resource "aws_security_group" "new_sec_grp" {
+    name = var.security_group_name
+    description = var.security_group_description
+    vpc_id = aws_vpc.newtest.id
+
+    ingress {
+        from_port = var.ingress_port_ssh
+        to_port = var.ingress_port_ssh
+        protocol    = "tcp"
+        cidr_blocks = var.ingress_cidr_blocks
+  }
+
+  ingress {
+        from_port = var.ingress_port_http
+        to_port = var.ingress_port_http
+        protocol    = "tcp"
+        cidr_blocks = var.ingress_cidr_blocks
+  }
+  
+  egress {
+    from_port = 0
+    to_port = 0
+    protocol = -1
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+    tags = {
+        Name = var.security_group_name
+    }
+}
+
+# Create a Key Pair
+resource "aws_key_pair" "name" {
+    key_name = var.key_name
+    public_key = file(var.new_key_pair_path)
+  
+}
+
+resource "aws_eip" "new_eip" {
+    domain = "vpc"
+  
+}
+
+# Create an EC2 Instance
+resource "aws_instance" "new_instance" {
+    ami = var.new_ami_id
+    instance_type = var.instance_type
+    subnet_id = aws_subnet.new_public.id
+    vpc_security_group_ids = [
+        aws_security_group.new_sec_grp.id
+    ]
+    key_name = aws_key_pair.name.key_name
+    associate_public_ip_address = true
+    tags = {
+      Name = var.instance_name
+    }
+}
+
+# Associate the Elastic IP with the instance
+resource "aws_eip_association" "eip_assoc" {
+  instance_id   = aws_instance.new_instance.id
+  allocation_id = aws_eip.new_eip.id
+}
+
+
