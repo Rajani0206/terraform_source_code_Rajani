@@ -1,0 +1,65 @@
+provider "aws" {
+  region     = "ap-south-1"
+}
+
+# Create a Key Pair
+resource "aws_key_pair" "Newkeypair" {
+  key_name   = "terraformKey"
+  public_key = file("terraform_ec2_key.pub") # Replace with your public key path
+}
+
+# Create a Security Group for HTTP and SSH access
+resource "aws_security_group" "HTTPandSSH" {
+  name        = "securitygrp_http_ssh"
+  description = "Allow HTTP and SSH inbound traffic"
+
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"] # Consider restricting this to your IP address for security
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+# Create an EC2 Instance
+resource "aws_instance" "EC2server" {
+  ami           = "ami-00bb6a80f01f03502"
+  instance_type = "t2.micro"
+    key_name = aws_key_pair.Newkeypair.key_name
+    vpc_security_group_ids = [ aws_security_group.HTTPandSSH.name ]
+
+     user_data = <<-EOF
+             #!/bin/bash
+              sudo apt update -y
+              sudo apt install -y apache2 unzip wget
+              sudo systemctl start apache2
+              sudo systemctl enable apache2
+              cd /var/www/html
+              sudo wget -O website.zip https://www.free-css.com/assets/files/free-css-templates/download/page296/finexo.zip
+              sudo unzip website.zip
+              sudo mv */* .
+              sudo rm -rf website.zip
+              sudo systemctl restart apache2
+              EOF
+
+
+    tags = {
+      Environment = "Test"
+      Name        = "Terraform on StaticWebsite"
+    }
+  
+}
