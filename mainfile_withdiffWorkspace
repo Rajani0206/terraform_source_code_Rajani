@@ -1,0 +1,22 @@
+provider "aws" {
+    region = "ap-south-1"
+  
+}
+
+locals {
+  common_tags = {
+  Name = "${terraform.workspace}-instance" 
+  creation_date = "date-${formatdate("DDMMYYYY", timestamp())}"
+  environment= "${terraform.workspace}"
+
+   }
+}
+
+resource "aws_instance" "ec2_example" {
+
+    ami = "ami-00bb6a80f01f03502" 
+    instance_type = var.instance_type 
+    tags = local.common_tags
+
+}
+
